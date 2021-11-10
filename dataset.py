@@ -9,17 +9,22 @@ class DistanceDataset(torch.utils.data.IterableDataset):
     
     def __iter__(self):
         while True:
-            for traj in self.generate_trajs():
+            for episode_num, traj in enumerate(self.generate_trajs()):
                 n = len(traj)
                 # Randomly shuffle start and end state
                 start_idxs = list(range(n))
                 random.shuffle(start_idxs)
-                for i in start_idxs:
-                    end_idxs = list(range(i, n))
+                for start_idx in start_idxs:
+                    end_idxs = list(range(start_idx, n))
                     random.shuffle(end_idxs)
-                    for j in end_idxs:
-                        start_state, _start_image = traj[i]
-                        end_state, _end_image = traj[j]
+                    for end_idx in end_idxs:
+                        start_state, _start_image = traj[start_idx]
+                        end_state, _end_image = traj[end_idx]
                         start_features = self.transform(start_state)
                         end_features = self.transform(end_state)
-                        yield np.concatenate((start_features, end_features)), j - i, (_start_image, _end_image)
+                        yield (
+                                np.concatenate((start_features, end_features)), 
+                                end_idx - start_idx, 
+                                (_start_image, _end_image),
+                                episode_num
+                                )
