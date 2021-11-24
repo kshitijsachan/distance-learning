@@ -43,12 +43,12 @@ def load_trajectories(path, starts, num_trajs):
     # trajs = [list(itertools.islice(gen, start, num_trajs)) for start in relative_starts]
     return trajs
 
-DATASET_FILEPATH = '/home/ksachan/data/monte_rnd_full_trajectories.pkl.gz'
+DATASET_FILEPATH = '/home/ksachan/data/monte_rnd_trajs/expert_policy/monte_rnd_last_3000_trajs_train.pkl.gz'
 SCREENSHOTS_DIR = '/home/ksachan/data/rnd_screenshots'
 MOVIES_DIR = '/home/ksachan/data/rnd_movies'
 Path(MOVIES_DIR).mkdir(parents=True, exist_ok=True)
 NUM_ENVS = 32
-single_env_starts = [0, 100, 200, 300, 375]
+single_env_starts = [0]
 starts = [start * NUM_ENVS for start in single_env_starts] 
 num_trajs = 100
 
@@ -65,6 +65,6 @@ for start,episodes in zip(single_env_starts, load_trajectories(DATASET_FILEPATH,
             frame_count += 1
 
     os.system(f"ffmpeg -y -i {ffmpeg_screenshots_dir}/%6d.png -r 25 {ffmpeg_movie_filepath}")
-    os.system(f"ffmpeg -y -i {ffmpeg_movie_filepath} -filter:v \"setpts=PTS/3\" {ffmpeg_movie_filepath}")
+    # os.system(f"ffmpeg -y -i {ffmpeg_movie_filepath} -filter:v \"setpts=PTS/2\" {ffmpeg_movie_filepath}")
 # run: ffmpeg -i /screenshots/%6d.png -r 25 all_frames.mp4
 # to speed it up: ffmpeg -i all_frames.mp4 -filter:v "setpts=PTS/3" all_frames3.mp4

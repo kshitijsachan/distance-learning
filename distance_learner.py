@@ -1,4 +1,4 @@
-import argparse, torch, ipdb, copy, itertools, sys, os
+import argparse, torch, ipdb, itertools, sys, os, random
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -11,7 +11,7 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, savedir, learning_rate=1e-5, batch_size=128, epochs=1, device=None):
+    def __init__(self, train_dataset, test_dataset, savedir, learning_rate=1e-5, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
@@ -21,40 +21,40 @@ class DistanceLearner():
         self.loss_fn = torch.nn.MSELoss()
         self.model = DistanceNetwork().to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-        self.train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
-        self.test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
+        self.train_dataloader = lambda: torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
+        self.test_dataloader = lambda: torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
         
         # plotting/history variables
         self.savedir = savedir
-        self.step_num = []
+        self.episodes_to_batches = lambda episodes : int(250 * 501 * episodes / batch_size)
+        self.train_episodes = train_episodes
+        self.test_episodes = test_episodes
         self.train_loss = [] 
         self.test_loss = [] 
 
-    def train_loop(self, num_batches):
+    def train_loop(self):
         loop_loss = IterativeAverage()
-        num_unique_train_examples = 0
-        for X, y, _images, episode_num in tqdm(itertools.islice(self.train_dataloader, 0, num_batches), total=num_batches):
-            for _ in range(self.epochs):
-                # forward pass
-                self.optimizer.zero_grad()
-                X = X.float().to(self.device)
-                y = y.float().to(self.device)
-                pred = self.model(X).squeeze()
-                loss = self.loss_fn(pred, y)
+        train_size = self.episodes_to_batches(self.train_episodes)
+        for X, y in tqdm(itertools.islice(self.train_dataloader(), 0, train_size), total=train_size):
+            # forward pass
+            self.optimizer.zero_grad()
+            X = X.float().to(self.device)
+            y = y.float().to(self.device)
+            pred = self.model(X).squeeze()
+            loss = self.loss_fn(pred, y)
 
-                # backpropagate
-                loss.backward()
-                self.optimizer.step()
+            # backpropagate
+            loss.backward()
+            self.optimizer.step()
 
-                # update plotting vars
-                loop_loss.add(loss.item())
-            num_unique_train_examples += len(X)
-        self.step_num.append(num_unique_train_examples)
+            # update plotting vars
+            loop_loss.add(loss.item())
         self.train_loss.append(loop_loss.avg())
 
-    def test_loop(self, num_batches):
+    def test_loop(self):
         loop_loss = IterativeAverage()
-        for X, y, _images, episode_num in tqdm(itertools.islice(self.test_dataloader, 0, num_batches), total=num_batches):
+        test_size = self.episodes_to_batches(self.test_episodes)
+        for X, y in tqdm(itertools.islice(self.test_dataloader(), 0, test_size), total=test_size):
             X = X.float().to(self.device)
             y = y.float().to(self.device)
             pred = self.model(X).squeeze()
@@ -63,42 +63,34 @@ class DistanceLearner():
         self.test_loss.append(loop_loss.avg())
 
     def run(self):
-        train_loop_size = int(3e6 / self.batch_size) # ~24 episodes
-        test_loop_size = int(1.5e6 / self.batch_size) # ~12 episodes
-
-        num_loops = 25
-        for i in range(num_loops):
-            print(f"Loop {i+1}\n-------------------------------")
-            self.train_loop(train_loop_size)
-            self.test_loop(test_loop_size)
+        for i in range(self.epochs):
+            print(f"Epoch {i+1}\n-------------------------------")
+            self.train_loop()
+            self.test_loop()
             self._plot_loss()
         torch.save({
             'model' : self.model.state_dict(),
             'optimizer' : self.optimizer.state_dict()
             }, os.path.join(self.savedir, f"pytorch_model_epoch={self.epochs}.pt"))
 
-
     def _plot_loss(self):
-        step_num = np.cumsum(self.step_num)
-        plt.plot(step_num, self.train_loss, label="train")
-        plt.plot(step_num, self.test_loss, label="test")
+        num_epochs = list(range(1, self.epochs + 1))
+        plt.plot(num_epochs, self.train_loss, label="train")
+        plt.plot(num_epochs, self.test_loss, label="test")
         plt.legend()
         plt.xlabel("# steps trained")
         plt.ylabel("average loss")
-        plt.savefig(os.path.join(self.savedir, f"step_loss_epoch={self.epochs}.png"))
+        plt.title(f"epoch_size={self.train_episodes}")
+        plt.savefig(os.path.join(self.savedir, f"loss.png"))
         plt.close('all')
 
-        average_episode_length = 500 * 501 / 2
-        num_episodes = np.array(step_num) / average_episode_length
-        plt.plot(num_episodes, self.train_loss, label="train")
-        plt.plot(num_episodes, self.test_loss, label="test")
-        plt.legend()
-        plt.xlabel("# episodes trained")
-        plt.ylabel("average loss")
-        plt.savefig(os.path.join(self.savedir, f"episode_loss_epoch={self.epochs}.png"))
-        plt.close("all")
 
 if __name__ == "__main__":
+    # set seeding
+    random.seed(0)
+    torch.manual_seed(0)
+
+
     parser = argparse.ArgumentParser(description="train distance metric on data")
     parser.add_argument("mdp_name", type=str)
     parser.add_argument("--num_epochs", type=int)
