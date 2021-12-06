@@ -68,17 +68,17 @@ class DistanceLearner():
             self.train_loop()
             self.test_loop()
             self._plot_loss()
-        torch.save({
-            'model' : self.model.state_dict(),
-            'optimizer' : self.optimizer.state_dict()
-            }, os.path.join(self.savedir, f"pytorch_model_epoch={self.epochs}.pt"))
+            torch.save({
+                'model' : self.model.state_dict(),
+                'optimizer' : self.optimizer.state_dict()
+                }, os.path.join(self.savedir, f"pytorch_model.pt"))
 
     def _plot_loss(self):
-        num_epochs = list(range(1, self.epochs + 1))
+        num_epochs = list(range(1, len(self.train_loss) + 1))
         plt.plot(num_epochs, self.train_loss, label="train")
         plt.plot(num_epochs, self.test_loss, label="test")
         plt.legend()
-        plt.xlabel("# steps trained")
+        plt.xlabel("# epochs trained")
         plt.ylabel("average loss")
         plt.title(f"epoch_size={self.train_episodes}")
         plt.savefig(os.path.join(self.savedir, f"loss.png"))
@@ -86,13 +86,9 @@ class DistanceLearner():
 
 
 if __name__ == "__main__":
-    # set seeding
-    random.seed(0)
-    torch.manual_seed(0)
-
-
     parser = argparse.ArgumentParser(description="train distance metric on data")
     parser.add_argument("mdp_name", type=str)
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--num_epochs", type=int)
     parser.add_argument("--device", type=str) # usually one of cuda:0 or cuda:1
     parser.add_argument("--experiment_name", type=str, default=None)
@@ -106,10 +102,16 @@ if __name__ == "__main__":
     else:
         parser.error(f"Invalid mdp name: {args.mdp_name}") 
 
+    # set seeding
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
     # set up save directory
     savedir = "run_data"
     if args.experiment_name is not None:
-        savedir = os.path.join(savedir, args.experiment_name)
+        savedir = os.path.join(savedir, args.experiment_name + f"_seed={seed}")
     os.makedirs(savedir, exist_ok=True)
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))

@@ -23,7 +23,6 @@ def bcd2int(bcd_string):
 class MonteRAMParser:
     def __init__(self):
         self.reset()
-
         
         self.status_codes_dict = {
             0x00: 'standing',
@@ -68,7 +67,7 @@ class MonteRAMParser:
             return list(dictionary.values()).index(val)
 
         vector = []
-        for k, v in state.items():
+        for i, (k, v) in enumerate(state.items()):
             if k == "player_status":
                 vector.append(dict_val_to_idx(self.status_codes_dict, v))
             elif k == "object_type":
@@ -76,7 +75,7 @@ class MonteRAMParser:
             elif k == "object_configuration":
                 vector.append(dict_val_to_idx(self.object_configuration_dict, v))
             elif k == "inventory":
-                vector.extend([int(has_item) for _item, has_item in v.items()])
+                vector.extend([int(has_item) for _item, has_item in v])
             elif k in ["player_look", "object_dir", "skull_dir"]:
                 vector.append(int(v == "left"))
             elif k in ["door_left", "door_right"]:
@@ -94,6 +93,15 @@ class MonteRAMParser:
         self.object_vertical_dir = 'up'
         self.lives = 5
 
+    def prune_for_first_room_distance_prediction(self, state):
+        pruned_state = dict()
+        for k in ['player_x', 'player_y', 'player_look', 'player_jumping', 'player_falling', 'score', 'lives', 'door_left', 'door_right', 'has_skull', 'skull_x', 'skull_dir', 'respawning', 'just_died']:
+            pruned_state[k] = state[k]
+        pruned_state['has_key'] = state['inventory']['key'] > 0
+        pruned_state['on_rope'] = state['player_status'] in ['on-rope', 'climbing-rope']
+        pruned_state['on_ladder'] = state['player_status'] in ['on-ladder', 'climbing-ladder']
+        return pruned_state
+        
     def parseRAM(self, ram):
         """Get the current annotated RAM state dictonary”
         See RAM annotations:
@@ -130,20 +138,21 @@ class MonteRAMParser:
         state['player_look'] = 'left' if look == 1 else 'right'
 
         state['lives'] = get_byte(ram, 'ba')
-        # if (state['lives'] < self.lives):
-        #     state['just_died'] = 1
-        # else:
-        #     state['just_died'] = 0
+        if (state['lives'] < self.lives):
+            state['just_died'] = 1
+        else:
+            state['just_died'] = 0
         self.lives = state['lives']
 
         state['time_to_spawn'] = get_byte(ram, 'b7')
         state['respawning'] = (state['time_to_spawn'] > 0 or state['player_status'] == 'dead')
 
-        inventory = format(get_byte(ram, 'c1'), '08b')  # convert to binary
+        ram_inventory = format(get_byte(ram, 'c1'), '08b')  # convert to binary
         possible_items = ['torch', 'sword', 'sword', 'key', 'key', 'key', 'key', 'hammer']
-        state['inventory'] = {
-                item: int(bit) == 1 for item, bit in zip(possible_items, inventory)
-        }
+        inventory = defaultdict(int)
+        for item, bit in zip(possible_items, ram_inventory):
+            inventory[item] += int(bit)
+        state['inventory'] = inventory
 
         # yapf: disable
         objects = format(get_byte(ram, 'c2'), '08b')[-4:]  # convert to binary; keep last 4 bits
@@ -192,7 +201,7 @@ class MonteRAMParser:
         state['object_vertical_dir'] = self.object_vertical_dir
 
         self.state = state
-        return self.vectorize_ram(state)
+        return self.vectorize_ram(self.prune_for_first_room_distance_prediction(state))
 
 
 class MontezumaRamFeatureExtractor(FeatureExtractor):
@@ -206,7 +215,8 @@ class MontezumaRamFeatureExtractor(FeatureExtractor):
         return a list of parsed RAM states
         """
         ram_states = list(zip(*traj))[0]
+        image_states = list(zip(*traj))[1]
         parser = MonteRAMParser()
         parsed_states = [parser.parseRAM(s) for s in ram_states]
-        return parsed_states
+        return parsed_states, image_states
 
