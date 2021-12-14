@@ -118,6 +118,10 @@ def bucket_distance2(distance):
         return 0
     return 1
 
+def bucket_distance3(distance):
+    if distance < 100:
+        return 0
+    return 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train distance metric on data")
@@ -150,7 +154,7 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    label_mapper = bucket_distance2
+    label_mapper = bucket_distance3
     num_classes = 2
     train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, label_mapper)
     test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, label_mapper)

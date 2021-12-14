@@ -8,7 +8,7 @@ from montezuma_ram_feature_extractor import MontezumaRamFeatureExtractor
 from distance_network import DistanceNetwork
 from dataset import DistanceDataset
 from utils import trajectories_generator
-from distance_learner import bucket_distance
+from distance_learner import bucket_distance3 as bucket_distance
 
 def parse_example(example):
     example = example.tolist()
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     feature_extractor = MontezumaRamFeatureExtractor()
     test_data = DistanceDataset(lambda: trajectories_generator("/home/ksachan/data/monte_rnd_trajs/expert_policy/monte_rnd_last_3000_trajs_test.pkl.gz"), feature_extractor, bucket_distance)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = DistanceNetwork(34, 7)
+    model = DistanceNetwork(34, 2)
     model.load_state_dict(checkpoint['model'])
     model.to(torch.device(device))
     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=128)
