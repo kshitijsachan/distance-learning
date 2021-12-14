@@ -12,7 +12,7 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, label_mapper, num_classes, savedir, learning_rate=5e-5, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, savedir, learning_rate=5e-5, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
@@ -33,19 +33,18 @@ class DistanceLearner():
         self.train_loss = [] 
         self.test_loss = [] 
 
-        undiscounted_distr = [avg_length - i for i in range(avg_length)]
-        discounted_distr = defaultdict(int)
-        for val, cnt in enumerate(undiscounted_distr):
-            discount_val = label_mapper(val)
-            discounted_distr[discount_val] += cnt
+        self.loss_fn = raise NotImplementedError
 
-        weights = []
-        for k in range(max(discounted_distr.keys()) + 1):
-            weights.append(discounted_distr[k])
-        probs = torch.tensor(weights).to(self.device) / sum(weights)
-        weights = 1 / probs
-        print(probs)
-        self.loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
+    def loss_fn(self, errors, k=1.0):
+        return torch.where(
+                errors < -self.quantile * k,
+                self.quantile * errors.abs(),
+                torch.where(
+                    errors > (1. - self.quantile) * k,
+                    (1. - self.quantile) * errors.abs(),
+                    (1. / (2 * k)) * errors ** 2
+                    )
+                ).mean()
 
 
     def train_loop(self):
@@ -101,24 +100,6 @@ class DistanceLearner():
         plt.close('all')
 
 
-def bucket_distance1(distance):
-    # 3 classes
-    # gamma = 0.97
-    # distance = (1 - gamma ** distance) / (1 - gamma)
-    if distance < 100:
-        return 0
-    elif distance < 400:
-        return 1
-    else:
-        return 2
-
-
-def bucket_distance2(distance):
-    if distance < 50:
-        return 0
-    return 1
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train distance metric on data")
     parser.add_argument("mdp_name", type=str)
@@ -150,9 +131,7 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    label_mapper = bucket_distance2
-    num_classes = 2
-    train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, label_mapper)
-    test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, label_mapper)
+    train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor)
+    test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor)
     learner = DistanceLearner(train_data, test_data, label_mapper, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
     learner.run()
