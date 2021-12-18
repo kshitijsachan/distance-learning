@@ -11,18 +11,37 @@ from dataset import DistanceDataset
 from utils import IterativeAverage, trajectories_generator
 
 
+def quantile_loss(errors, quantile, k=1.0, reduce='mean'):
+    loss = torch.where(
+            errors < -quantile * k,
+            quantile * errors.abs(),
+            torch.where(
+                errors > (1. - quantile) * k,
+                (1. - quantile) * errors.abs(),
+                (1. / (2 * k)) * errors ** 2
+                )
+            )
+    if reduce == 'mean':
+        return loss.mean()
+    elif reduce == 'none':
+        return loss
+    else:
+        raise ValueError('invalid input for `reduce`')
+
+
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, savedir, learning_rate=5e-5, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, savedir, quantile, learning_rate=5e-5, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        self.model = DistanceNetwork(input_dim=34, output_dim=num_classes).to(self.device)
+        self.model = DistanceNetwork(input_dim=34, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.train_data = lambda: torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
         self.test_data = lambda: torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
+        self.quantile = quantile
         
         # plotting/history variables
         self.savedir = savedir
@@ -32,20 +51,7 @@ class DistanceLearner():
         self.test_episodes = test_episodes
         self.train_loss = [] 
         self.test_loss = [] 
-
-        self.loss_fn = raise NotImplementedError
-
-    def loss_fn(self, errors, k=1.0):
-        return torch.where(
-                errors < -self.quantile * k,
-                self.quantile * errors.abs(),
-                torch.where(
-                    errors > (1. - self.quantile) * k,
-                    (1. - self.quantile) * errors.abs(),
-                    (1. / (2 * k)) * errors ** 2
-                    )
-                ).mean()
-
+        self.loss_fn = quantile_loss
 
     def train_loop(self):
         loop_loss = IterativeAverage()
@@ -55,8 +61,8 @@ class DistanceLearner():
             self.optimizer.zero_grad()
             X = X.float().to(self.device)
             y = predict_y.to(self.device)
-            pred = self.model(X)
-            loss = self.loss_fn(pred, y)
+            pred = self.model(X).squeeze()
+            loss = self.loss_fn(pred - y, self.quantile)
 
             # backpropagate
             loss.backward()
@@ -73,7 +79,7 @@ class DistanceLearner():
             X = X.float().to(self.device)
             y = predict_y.to(self.device)
             pred = self.model(X)
-            loss = self.loss_fn(pred, y).item()
+            loss = self.loss_fn(pred - y, self.quantile).item()
             loop_loss.add(loss)
         self.test_loss.append(loop_loss.avg())
 
@@ -133,5 +139,5 @@ if __name__ == "__main__":
 
     train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor)
     test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor)
-    learner = DistanceLearner(train_data, test_data, label_mapper, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
+    learner = DistanceLearner(train_data, test_data, savedir=savedir, quantile=0.05, device=args.device, epochs=args.num_epochs)
     learner.run()

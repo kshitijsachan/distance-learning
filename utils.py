@@ -12,9 +12,11 @@ class IterativeAverage():
     def avg(self):
         return self.sum / self.n
 
-def trajectories_generator(path):
+def trajectories_generator(path, num_skip):
     with gzip.open(path, 'rb') as f:
         try:
+            for _ in range(num_skip):
+                traj = pickle.load(f)
             while True:
                 traj = pickle.load(f)
                 yield traj
