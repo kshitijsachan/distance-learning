@@ -1,5 +1,7 @@
-import torch, random, ipdb
+import torch, random, ipdb, pickle
 import numpy as np
+
+from utils import parse_example
 
 class DistanceDataset(torch.utils.data.IterableDataset):
     def __init__(self, generate_trajs, feature_extractor, label_mapping_func):
@@ -7,6 +9,10 @@ class DistanceDataset(torch.utils.data.IterableDataset):
         self.generate_trajs = generate_trajs
         self.transform = feature_extractor.extract_features
         self.label_mapping_func = label_mapping_func
+
+        # DELETE THIS
+        with open('true_distance.pkl', 'rb') as f:
+            self.true_distance = pickle.load(f)
 
     def _discount_distance(self, distance):
         return (1 - self.GAMMA ** distance) / (1 - self.GAMMA)
@@ -32,4 +38,7 @@ class DistanceDataset(torch.utils.data.IterableDataset):
                         start_img = img_traj[start_idx]
                         end_img = img_traj[end_idx]
                         image_pair = (start_img, end_img)
+
+                        # DELETE THIS
+                        to_predict_y = self.true_distance[parse_example(x)]
                         yield x, to_predict_y, true_y, image_pair

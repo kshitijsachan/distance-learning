@@ -7,62 +7,8 @@ from collections import defaultdict
 from montezuma_ram_feature_extractor import MontezumaRamFeatureExtractor 
 from distance_network import DistanceNetwork
 from dataset import DistanceDataset
-from utils import trajectories_generator
+from utils import trajectories_generator, parse_example, get_all_combos
 from distance_learner import bucket_distance3 as bucket_distance
-
-def parse_example(example):
-    example = example.tolist()
-    size = int(len(example) / 2)
-    s1, s2 = example[:size], example[size:]
-    return _parse_state(s1), _parse_state(s2)
-
-def _parse_state(state):
-    xy = _parse_xy(state)
-    lives = int(state[6])
-    has_key = bool(state[14])
-    # left_door_open = bool(state[7])
-    # right_door_open = bool(state[8])
-    # return (xy, lives, has_key, left_door_open, right_door_open)
-    return (xy, lives, has_key)
-
-def _parse_xy(state):
-    if state[15]:
-        return 'rope'
-
-    x, y = state[0], state[1]
-    if state[16]:
-        if x < 36:
-            return 'left-ladder'
-        if x > 119:
-            return 'right-ladder'
-        return 'middle-ladder'
-
-    if y >= 235:
-        if x < 54:
-            return 'top-left'
-        if 63 < x < 89:
-            return 'top-middle'
-        if x > 98:
-            return 'top-right'
-
-    if y <= 165:
-        return 'bottom'
-
-    if 129 <= y <= 209:
-        if x < 36:
-            return 'middle-left'
-        if 56 < x < 101:
-            return 'middle-middle'
-        if x > 119:
-            return 'middle-right'
-    return 'misc'
-
-def get_all_combos():
-        xy_pos = ['left-ladder', 'middle-ladder', 'right-ladder', 'rope', 'top-left', 'top-middle', 'top-right', 'bottom', 'middle-left', 'middle-middle', 'middle-right', 'misc']
-        lives_left = list(range(6))
-        has_key = [True, False]
-        all_combos = lambda : itertools.product(xy_pos, lives_left, has_key)
-        return all_combos
 
 def get_matrix(keys, default_val):
         m = {(s1, s2) : default_val() for s1 in keys() for s2 in keys()}
@@ -114,7 +60,7 @@ if __name__ == "__main__":
 
     losses = []
     test_episodes = 30
-    test_size = int(250 * 501 * test_episodes / 128)
+    test_size = int(275 * 551 * test_episodes / 128)
     keys = get_all_combos()
     y_m = get_matrix(keys, list)
     cnt_m = get_matrix(keys, int)
@@ -136,6 +82,7 @@ if __name__ == "__main__":
 
     relevant_keys = [k for (k, v) in cnt_m.items() if v > 4000]
     y_m = {k : np.array(y_m[k]) for k in relevant_keys}
+
     avg_loss_m = {k : total_loss_m[k] / cnt_m[k] for k in relevant_keys}
     by_avg_loss = sorted(avg_loss_m.items(), key=lambda kv: kv[1], reverse=True)
     print('---------HIGH LOSS----------')
@@ -182,9 +129,8 @@ if __name__ == "__main__":
         pred_var = np.mean([1/np.var(p) for p in pred])
         variance_m[k] = [undiscounted_y_var, undiscounted_y_var_over_mean, discounted_y_var, pred_var]
     
-
-    true_distance = [min(y_m[k][:, 2]) for k in relevant_keys]
     avg_distance = [np.mean(y_m[k][:, 2]) for k in relevant_keys]
+    true_distance = [min(y_m[k][:, 2]) for k in relevant_keys]
     losses = [avg_loss_m[k] for k in relevant_keys]
     total_loss_scaled = [total_loss_m[k] * 2e-4 for k in relevant_keys]
     for idx, title in [(0, 'undiscounted_variance'), (1, 'undiscounted_variance_over_mean'), (2, 'discounted_variance'), (3, 'avg_prediction_uncertainty')]:

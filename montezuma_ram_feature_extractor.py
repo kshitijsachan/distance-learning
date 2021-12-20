@@ -102,6 +102,12 @@ class MonteRAMParser:
         pruned_state['on_ladder'] = state['player_status'] in ['on-ladder', 'climbing-ladder']
         return pruned_state
         
+    def prune_for_proof_of_concept(self, state):
+        pruned_state = dict()
+        for k in ['player_x', 'player_y', 'lives', 'has_key', 'on_rope', 'on_ladder']:
+            pruned_state[k] = state[k]
+        return pruned_state
+
     def parseRAM(self, ram):
         """Get the current annotated RAM state dictonary”
         See RAM annotations:
@@ -201,7 +207,7 @@ class MonteRAMParser:
         state['object_vertical_dir'] = self.object_vertical_dir
 
         self.state = state
-        return self.vectorize_ram(self.prune_for_first_room_distance_prediction(state))
+        return self.vectorize_ram(self.prune_for_proof_of_concept(self.prune_for_first_room_distance_prediction(state)))
 
 
 class MontezumaRamFeatureExtractor(FeatureExtractor):
