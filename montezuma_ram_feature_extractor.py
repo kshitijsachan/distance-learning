@@ -68,7 +68,9 @@ class MonteRAMParser:
 
         vector = []
         for i, (k, v) in enumerate(state.items()):
-            if k == "player_status":
+            if k in ['player_x', 'player_y']:
+                vector.append(v)
+            elif k == "player_status":
                 vector.append(dict_val_to_idx(self.status_codes_dict, v))
             elif k == "object_type":
                 vector.append(dict_val_to_idx(self.object_type_dict, v))
@@ -105,7 +107,12 @@ class MonteRAMParser:
     def prune_for_proof_of_concept(self, state):
         pruned_state = dict()
         for k in ['player_x', 'player_y', 'lives', 'has_key', 'on_rope', 'on_ladder']:
-            pruned_state[k] = state[k]
+            if k == 'player_x':
+                pruned_state[k] = (state[k] - 1) / 151
+            elif k == 'player_y':
+                pruned_state[k] = (state[k] - 148) / 104
+            else:
+                pruned_state[k] = state[k]
         return pruned_state
 
     def parseRAM(self, ram):

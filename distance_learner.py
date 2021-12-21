@@ -12,7 +12,7 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, label_mapper, num_classes, savedir, learning_rate=1e-4, batch_size=32, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, label_mapper, num_classes, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
@@ -103,6 +103,9 @@ class DistanceLearner():
         plt.savefig(os.path.join(self.savedir, f"loss.png"))
         plt.close('all')
 
+def discount_distance(distance):
+    gamma = 0.97
+    return (1 - gamma ** distance) / (1 - gamma)
 
 def bucket_distance1(distance):
     # 3 classes

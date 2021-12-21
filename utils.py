@@ -1,4 +1,4 @@
-import pickle, gzip, itertools
+import pickle, gzip, itertools, ipdb
 
 class IterativeAverage():
     def __init__(self):
@@ -41,7 +41,9 @@ def _parse_xy(state):
     if state[4]:
         return 'rope'
 
-    x, y = state[0], state[1]
+    normalized_x, normalized_y = state[0], state[1]
+    x = normalized_x * 151 + 1
+    y = normalized_y * 104 + 148
     if state[5]:
         if x < 36:
             return 'left-ladder'
