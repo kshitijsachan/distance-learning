@@ -7,6 +7,7 @@ from collections import defaultdict
 from montezuma_ram_feature_extractor import MontezumaRamFeatureExtractor 
 from distance_network import DistanceNetwork
 from dataset import DistanceDataset
+<<<<<<< HEAD
 from utils import trajectories_generator
 from distance_learner import quantile_loss
 
@@ -63,6 +64,10 @@ def get_all_combos():
         has_key = [True, False]
         all_combos = lambda : itertools.product(xy_pos, lives_left, has_key)
         return all_combos
+=======
+from utils import trajectories_generator, parse_example, get_all_combos
+from distance_learner import bucket_distance3 as bucket_distance
+>>>>>>> main
 
 def get_matrix(keys, default_val):
         m = {(s1, s2) : default_val() for s1 in keys() for s2 in keys()}
@@ -94,7 +99,11 @@ if __name__ == "__main__":
     feature_extractor = MontezumaRamFeatureExtractor()
     test_data = DistanceDataset(lambda: trajectories_generator("/home/ksachan/data/monte_rnd_trajs/expert_policy/monte_rnd_last_3000_trajs_test.pkl.gz"), feature_extractor)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+<<<<<<< HEAD
     model = DistanceNetwork(34, 1)
+=======
+    model = DistanceNetwork(34, 2)
+>>>>>>> main
     model.load_state_dict(checkpoint['model'])
     model.to(torch.device(device))
     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=128)
@@ -103,8 +112,12 @@ if __name__ == "__main__":
     loss_fn = lambda error: quantile_loss(error, quantile, reduce='none')
     losses = []
     test_episodes = 30
+<<<<<<< HEAD
     avg_size = 550
     test_size = int(avg_size * (avg_size + 1) * test_episodes / 256)
+=======
+    test_size = int(275 * 551 * test_episodes / 128)
+>>>>>>> main
     keys = get_all_combos()
     y_m = get_matrix(keys, list)
     cnt_m = get_matrix(keys, int)
@@ -125,6 +138,7 @@ if __name__ == "__main__":
 
     relevant_keys = [k for (k, v) in cnt_m.items() if v > 4000]
     y_m = {k : np.array(y_m[k]) for k in relevant_keys}
+
     avg_loss_m = {k : total_loss_m[k] / cnt_m[k] for k in relevant_keys}
     by_avg_loss = sorted(avg_loss_m.items(), key=lambda kv: kv[1], reverse=True)
     print('---------HIGH LOSS----------')
@@ -144,6 +158,7 @@ if __name__ == "__main__":
         plot_y_hist("low_loss", k, y_m[k])
 
     # plot variance
+<<<<<<< HEAD
     # variance_m = {}
     # for k, v in y_m.items():
     #     discounted_y = v[:, 0]
@@ -191,3 +206,51 @@ if __name__ == "__main__":
     # plt.title("counts")
     # plt.savefig("run_data/plots/cnt_histogram.png")
     # plt.close('all')
+=======
+    variance_m = {}
+    for k, v in y_m.items():
+        discounted_y = v[:, 0]
+        pred = v[:, 1]
+        undiscounted_y = v[:, 2]
+        undiscounted_y_var = np.var(undiscounted_y)
+        undiscounted_y_var_over_mean = undiscounted_y_var / np.mean(undiscounted_y)
+        discounted_y_var = np.var(discounted_y)
+        pred_var = np.mean([1/np.var(p) for p in pred])
+        variance_m[k] = [undiscounted_y_var, undiscounted_y_var_over_mean, discounted_y_var, pred_var]
+    
+    avg_distance = [np.mean(y_m[k][:, 2]) for k in relevant_keys]
+    true_distance = [min(y_m[k][:, 2]) for k in relevant_keys]
+    losses = [avg_loss_m[k] for k in relevant_keys]
+    total_loss_scaled = [total_loss_m[k] * 2e-4 for k in relevant_keys]
+    for idx, title in [(0, 'undiscounted_variance'), (1, 'undiscounted_variance_over_mean'), (2, 'discounted_variance'), (3, 'avg_prediction_uncertainty')]:
+        arr = [variance_m[k][idx] for k in relevant_keys]
+        plt.hist(arr, bins=50)
+        plt.title(title)
+        plt.savefig(f"run_data/plots/variance/{title}.png")
+        plt.close('all')
+
+        plt.scatter(arr, losses, alpha=0.4, s=total_loss_scaled)
+        plt.title(f"{title} vs loss")
+        plt.savefig(f"run_data/plots/variance/{title}_vs_loss.png")
+        plt.close('all')
+
+        plt.scatter(true_distance, arr, alpha=0.4)
+        plt.title(f"true distance vs {title}")
+        plt.xlabel("true distance")
+        plt.ylabel(title)
+        plt.savefig(f"run_data/plots/variance/true_distance_vs_{title}.png")
+        plt.close('all')
+
+        plt.scatter(avg_distance, arr, alpha=0.4)
+        plt.title(f"avg distance vs {title}")
+        plt.xlabel("avg distance")
+        plt.ylabel(title)
+        plt.savefig(f"run_data/plots/variance/avg_distance_vs_{title}.png")
+        plt.close('all')
+
+    # plot cnt
+    plt.hist(cnt_m.values(), bins=50, log=True)
+    plt.title("counts")
+    plt.savefig("run_data/plots/cnt_histogram.png")
+    plt.close('all')
+>>>>>>> main

@@ -5,7 +5,9 @@ class DistanceNetwork(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DistanceNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_dim, 20),
+            nn.Linear(input_dim, 30),
+            nn.ReLU(),
+            nn.Linear(30, 20),
             nn.ReLU(),
             nn.Linear(20, output_dim),
         )

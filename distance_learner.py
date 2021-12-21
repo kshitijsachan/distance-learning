@@ -37,7 +37,7 @@ class DistanceLearner():
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        self.model = DistanceNetwork(input_dim=34, output_dim=1).to(self.device)
+        self.model = DistanceNetwork(input_dim=12, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.train_data = lambda: torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
         self.test_data = lambda: torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
@@ -45,7 +45,7 @@ class DistanceLearner():
         
         # plotting/history variables
         self.savedir = savedir
-        avg_length = 600
+        avg_length = 550
         self.episodes_to_batches = lambda episodes : int(avg_length * (avg_length / 2)* episodes / batch_size)
         self.train_episodes = train_episodes
         self.test_episodes = test_episodes
@@ -84,6 +84,7 @@ class DistanceLearner():
         self.test_loss.append(loop_loss.avg())
 
     def run(self):
+        self.test_loop()
         for i in range(self.epochs):
             print(f"Epoch {i+1}\n-------------------------------")
             self.train_loop()
@@ -97,6 +98,7 @@ class DistanceLearner():
     def _plot_loss(self):
         num_epochs = list(range(1, len(self.train_loss) + 1))
         plt.plot(num_epochs, self.train_loss, label="train")
+        num_epochs = list(range(len(self.test_loss)))
         plt.plot(num_epochs, self.test_loss, label="test")
         plt.legend()
         plt.xlabel("# epochs trained")
@@ -105,6 +107,9 @@ class DistanceLearner():
         plt.savefig(os.path.join(self.savedir, f"loss.png"))
         plt.close('all')
 
+def discount_distance(distance):
+    gamma = 0.97
+    return (1 - gamma ** distance) / (1 - gamma)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train distance metric on data")
