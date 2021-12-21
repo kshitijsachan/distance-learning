@@ -1,6 +1,6 @@
 import torch, random, ipdb, pickle
 import numpy as np
-from more_itertools import chunked, flatten
+from more_itertools import chunked, flatten, windowed
 from collections import defaultdict
 
 from utils import parse_example
@@ -17,10 +17,6 @@ class DistanceDataset(torch.utils.data.IterableDataset):
         with open('true_distance.pkl', 'rb') as f:
             self.true_distance = pickle.load(f)
         self.true_distance = defaultdict(lambda: random.randint(0, 500), self.true_distance)
-        self.cntr = 0
-
-    def _discount_distance(self, distance):
-        return (1 - self.GAMMA ** distance) / (1 - self.GAMMA)
 
     def traj_to_data_pairs(self, traj):
         ram_traj, img_traj = self.transform(traj)
@@ -60,4 +56,27 @@ class DistanceDataset(torch.utils.data.IterableDataset):
 
                     to_predict_y = self.true_distance[k]
                     yield (x, to_predict_y, true_y, img)
+
+class TripletLossDataset(torch.utils.data.IterableDataset):
+    def __init__(self, generate_trajs, feature_extractor, label_mapping_func, idle_threshold=100, positive_radius=5):
+        super(DistanceDataset).__init__()
+        self.generate_trajs = generate_trajs
+        self.transform = feature_extractor.extract_features
+        self.idle_threshold = idle_threshold
+        self.positive_radius = positive_radius
+    
+    def __iter__(self):
+        for traj in self.generate_traj():
+            n = len(traj)
+            ram_traj, img_traj = self.transform(traj)
+            for anchor_idx in range(self.positive_radius, n - self.positive_radius):
+                lower_lim, upper_lim = anchor_idx - self.positive_radius, anchor_idx + self.positive_radius
+                for positive_idx in range(max(0, lower_lim), min(n, upper_lim)):
+                    negative_idx = anchor_idx
+                    while lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
+                        negative_idx = random.randint(0, n - 1)
+
+                    anchor, positive, negative = ram_traj[anchor_idx], ram_traj[positive_idx], ram_traj[negative_idx]
+                    anchor_img, positive_img, negative_img = img_traj[anchor_idx], img_traj[positive_idx], img_traj[negative_idx]
+                    yield (anchor, positive, negative, (anchor_img, positive_img, negative_img))
 
