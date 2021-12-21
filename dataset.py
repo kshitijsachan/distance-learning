@@ -58,7 +58,7 @@ class DistanceDataset(torch.utils.data.IterableDataset):
                     yield (x, to_predict_y, true_y, img)
 
 class TripletLossDataset(torch.utils.data.IterableDataset):
-    def __init__(self, generate_trajs, feature_extractor, label_mapping_func, idle_threshold=100, positive_radius=5):
+    def __init__(self, generate_trajs, feature_extractor, idle_threshold=100, positive_radius=5):
         super(DistanceDataset).__init__()
         self.generate_trajs = generate_trajs
         self.transform = feature_extractor.extract_features
@@ -69,9 +69,14 @@ class TripletLossDataset(torch.utils.data.IterableDataset):
         for traj in self.generate_traj():
             n = len(traj)
             ram_traj, img_traj = self.transform(traj)
-            for anchor_idx in range(self.positive_radius, n - self.positive_radius):
+            ipdb.set_trace()
+            anchor_idxs = list(range(self.positive_radius, n - self.positive_radius))
+            random.shuffle(anchor_idxs)
+            for anchor_idx in anchor_idxs:
                 lower_lim, upper_lim = anchor_idx - self.positive_radius, anchor_idx + self.positive_radius
-                for positive_idx in range(max(0, lower_lim), min(n, upper_lim)):
+                positive_idxs = list(range(max(0, lower_lim), min(n, upper_lim))) 
+                random.shuffle(positive_idxs)
+                for positive_idx in positive_idxs:
                     negative_idx = anchor_idx
                     while lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
                         negative_idx = random.randint(0, n - 1)

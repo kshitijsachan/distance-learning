@@ -27,27 +27,21 @@ class DistanceLearner():
         # plotting/history variables
         self.savedir = savedir
         avg_length = 550
-        self.episodes_to_batches = lambda episodes : int(avg_length * (avg_length / 2)* episodes / batch_size)
+        positive_radius
+        self.episodes_to_batches = lambda episodes : int((2 * positive_radius + 1) * avg_length * episodes / batch_size)
         self.train_episodes = train_episodes
         self.test_episodes = test_episodes
         self.train_loss = [] 
         self.test_loss = [] 
+        self.loss_fn = triplet_loss
 
-        self.loss_fn = torch.nn.MSELoss()
-#        undiscounted_distr = [avg_length - i for i in range(avg_length)]
-#        discounted_distr = defaultdict(int)
-#        for val, cnt in enumerate(undiscounted_distr):
-#            discount_val = label_mapper(val)
-#            discounted_distr[discount_val] += cnt
-
-#        weights = []
-#        for k in range(max(discounted_distr.keys()) + 1):
-#            weights.append(discounted_distr[k])
-#        probs = torch.tensor(weights).to(self.device) / sum(weights)
-#        weights = 1 / probs
-#        print(probs)
-#        self.loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
-
+    def triplet_loss(self, anchor, positive, negative):
+        d_pos = torch.norm(anchor - positive, 2)
+        d_neg = torch.norm(anchor - negative, 2)
+        undershoot = torch.nn.functional.relu(d_pos - d_neg + self.margin)
+        num_positive_triplets = torch.sum(undershoot > 1e-16)
+        ipdb.set_trace()
+        return torch.sum(undershoot, dim=0) / (num_positive_triplets + 1e-16)
 
     def train_loop(self):
         loop_loss = IterativeAverage()
@@ -160,9 +154,7 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    label_mapper = lambda x: x
-    num_classes = 1
-    train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, label_mapper)
-    test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, label_mapper)
+    train_data = TripletLossDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor)
+    test_data = TripletLossDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor)
     learner = DistanceLearner(train_data, test_data, label_mapper, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
     learner.run()
