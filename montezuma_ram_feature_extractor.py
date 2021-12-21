@@ -1,6 +1,7 @@
 import ipdb
 import numpy as np
 from collections import defaultdict
+from utils import _parse_state
 
 from feature_extractor import FeatureExtractor
 
@@ -68,7 +69,8 @@ class MonteRAMParser:
 
         vector = []
         for i, (k, v) in enumerate(state.items()):
-            if k in ['player_x', 'player_y']:
+            if k in ['player_x', 'player_y', 'skull_x', 'lives']:
+                # normalized features should be appended as floats, not ints
                 vector.append(v)
             elif k == "player_status":
                 vector.append(dict_val_to_idx(self.status_codes_dict, v))
@@ -85,8 +87,9 @@ class MonteRAMParser:
             elif k == "object_vertical_dir":
                 vector.append(int(v == "up"))
             else:
-                # v should be a bool, int, or np.uint
+                assert isinstance(v, (int, np.bool_, np.uint)), 'did not correctly vectorize state'
                 vector.append(int(v))
+
         return vector
 
     def reset(self):
@@ -98,7 +101,15 @@ class MonteRAMParser:
     def prune_for_first_room_distance_prediction(self, state):
         pruned_state = dict()
         for k in ['player_x', 'player_y', 'player_look', 'player_jumping', 'player_falling', 'score', 'lives', 'door_left', 'door_right', 'has_skull', 'skull_x', 'skull_dir', 'respawning', 'just_died']:
-            pruned_state[k] = state[k]
+            # normalize x, y
+            if k in ['player_x', 'skull_x']:
+                pruned_state[k] = (state[k] - 1) / 151
+            elif k == 'player_y':
+                pruned_state[k] = (state[k] - 148) / 104
+            elif k == 'lives':
+                pruned_state[k] = state[k] / 5.
+            else:
+                pruned_state[k] = state[k]
         pruned_state['has_key'] = state['inventory']['key'] > 0
         pruned_state['on_rope'] = state['player_status'] in ['on-rope', 'climbing-rope']
         pruned_state['on_ladder'] = state['player_status'] in ['on-ladder', 'climbing-ladder']
@@ -107,11 +118,6 @@ class MonteRAMParser:
     def prune_for_proof_of_concept(self, state):
         pruned_state = dict()
         for k in ['player_x', 'player_y', 'lives', 'has_key', 'on_rope', 'on_ladder']:
-            if k == 'player_x':
-                pruned_state[k] = (state[k] - 1) / 151
-            elif k == 'player_y':
-                pruned_state[k] = (state[k] - 148) / 104
-            else:
                 pruned_state[k] = state[k]
         return pruned_state
 

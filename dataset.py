@@ -19,9 +19,6 @@ class DistanceDataset(torch.utils.data.IterableDataset):
         self.true_distance = defaultdict(lambda: random.randint(0, 500), self.true_distance)
         self.cntr = 0
 
-    def _discount_distance(self, distance):
-        return (1 - self.GAMMA ** distance) / (1 - self.GAMMA)
-
     def traj_to_data_pairs(self, traj):
         ram_traj, img_traj = self.transform(traj)
         n = len(traj)
@@ -55,9 +52,10 @@ class DistanceDataset(torch.utils.data.IterableDataset):
                     # DELETE THIS
                     k = parse_example(x)
                     if k not in self.true_distance:
+                        ipdb.set_trace()
                         self.cntr += 1
                         print(self.cntr)
 
-                    to_predict_y = self.true_distance[k]
+                    to_predict_y = self.label_mapping_func(self.true_distance[k])
                     yield (x, to_predict_y, true_y, img)
 

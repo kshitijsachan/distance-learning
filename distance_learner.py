@@ -12,14 +12,14 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, label_mapper, num_classes, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, label_mapper, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        self.model = DistanceNetwork(input_dim=12, output_dim=num_classes).to(self.device)
+        self.model = DistanceNetwork(input_dim=12, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.train_data = lambda: torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
         self.test_data = lambda: torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
@@ -34,20 +34,6 @@ class DistanceLearner():
         self.test_loss = [] 
 
         self.loss_fn = torch.nn.MSELoss()
-#        undiscounted_distr = [avg_length - i for i in range(avg_length)]
-#        discounted_distr = defaultdict(int)
-#        for val, cnt in enumerate(undiscounted_distr):
-#            discount_val = label_mapper(val)
-#            discounted_distr[discount_val] += cnt
-
-#        weights = []
-#        for k in range(max(discounted_distr.keys()) + 1):
-#            weights.append(discounted_distr[k])
-#        probs = torch.tensor(weights).to(self.device) / sum(weights)
-#        weights = 1 / probs
-#        print(probs)
-#        self.loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
-
 
     def train_loop(self):
         loop_loss = IterativeAverage()
@@ -160,9 +146,8 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    label_mapper = lambda x: x
-    num_classes = 1
+    label_mapper = discount_distance
     train_data = DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, label_mapper)
     test_data = DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, label_mapper)
-    learner = DistanceLearner(train_data, test_data, label_mapper, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
+    learner = DistanceLearner(train_data, test_data, label_mapper, savedir=savedir, device=args.device, epochs=args.num_epochs)
     learner.run()
