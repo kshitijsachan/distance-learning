@@ -22,6 +22,14 @@ def trajectories_generator(path):
             print("finished reading data")
             pass
 
+idxs = {'player_x' : 0, 
+        'player_y' : 1,
+        'lives' : 2, #6
+        'has_key' : 3, #14
+        'on_rope' : 4, #15
+        'on_ladder' : 5, #16
+        }
+
 def parse_example(example):
     example = example.tolist()
     size = int(len(example) / 2)
@@ -30,21 +38,18 @@ def parse_example(example):
 
 def _parse_state(state):
     xy = _parse_xy(state)
-    lives = int(state[2])
-    has_key = bool(state[3])
-    # left_door_open = bool(state[7])
-    # right_door_open = bool(state[8])
-    # return (xy, lives, has_key, left_door_open, right_door_open)
+    lives = int(state[idxs['lives']] * 5)
+    has_key = bool(state[idxs['has_key']])
     return (xy, lives, has_key)
 
 def _parse_xy(state):
-    if state[4]:
+    if state[idxs['on_rope']]:
         return 'rope'
 
-    normalized_x, normalized_y = state[0], state[1]
+    normalized_x, normalized_y = state[idxs['player_x']], state[idxs['player_y']]
     x = normalized_x * 151 + 1
     y = normalized_y * 104 + 148
-    if state[5]:
+    if state[idxs['on_ladder']]:
         if x < 36:
             return 'left-ladder'
         if x > 119:

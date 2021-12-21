@@ -19,7 +19,7 @@ class DistanceLearner():
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
-        self.model = DistanceNetwork(input_dim=12, output_dim=num_classes).to(self.device)
+        self.model = DistanceNetwork(input_dim=12, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.train_data = lambda: torch.utils.data.DataLoader(train_dataset, batch_size=batch_size)
         self.test_data = lambda: torch.utils.data.DataLoader(test_dataset, batch_size=batch_size)
