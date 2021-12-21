@@ -12,7 +12,7 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, label_mapper, num_classes, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, num_classes, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
@@ -35,9 +35,7 @@ class DistanceLearner():
         self.test_loss = [] 
         self.loss_fn = triplet_loss
 
-    def triplet_loss(self, anchor, positive, negative):
-        d_pos = torch.norm(anchor - positive, 2)
-        d_neg = torch.norm(anchor - negative, 2)
+    def triplet_loss(self, d_pos, d_neg):
         undershoot = torch.nn.functional.relu(d_pos - d_neg + self.margin)
         num_positive_triplets = torch.sum(undershoot > 1e-16)
         ipdb.set_trace()
@@ -46,13 +44,15 @@ class DistanceLearner():
     def train_loop(self):
         loop_loss = IterativeAverage()
         train_size = self.episodes_to_batches(self.train_episodes)
-        for X, predict_y, true_y, img in tqdm(itertools.islice(self.train_data(), 0, train_size), total=train_size):
+        for anchor, pos, neg, img in tqdm(itertools.islice(self.train_data(), 0, train_size), total=train_size):
             # forward pass
             self.optimizer.zero_grad()
-            X = X.float().to(self.device)
-            y = predict_y.float().to(self.device)
-            pred = self.model(X).squeeze()
-            loss = self.loss_fn(pred, y)
+            anchor = anchor.float().to(self.device)
+            pos= pos.float().to(self.device)
+            pos = pos.float().to(self.device)
+            d_pos = self.model(torch.concatenate((anchor, pos)).squeeze()
+            d_neg = self.model(torch.concatenate((anchor, neg)).squeeze()
+            loss = self.loss_fn(d_pos, d_neg)
 
             # backpropagate
             loss.backward()
@@ -65,12 +65,14 @@ class DistanceLearner():
     def test_loop(self):
         loop_loss = IterativeAverage()
         test_size = self.episodes_to_batches(self.test_episodes)
-        for X, predict_y, true_y, img in tqdm(itertools.islice(self.test_data(), 0, test_size), total=test_size):
-            X = X.float().to(self.device)
-            y = predict_y.float().to(self.device)
-            pred = self.model(X).squeeze()
-            loss = self.loss_fn(pred, y).item()
-            loop_loss.add(loss)
+        for anchor, pos, neg, img in tqdm(itertools.islice(self.test_data(), 0, test_size), total=test_size):
+            anchor = anchor.float().to(self.device)
+            pos= pos.float().to(self.device)
+            pos = pos.float().to(self.device)
+            d_pos = self.model(torch.concatenate((anchor, pos)).squeeze()
+            d_neg = self.model(torch.concatenate((anchor, neg)).squeeze()
+            loss = self.loss_fn(d_pos, d_neg)
+            loop_loss.add(loss.item())
         self.test_loss.append(loop_loss.avg())
 
     def run(self):
@@ -96,32 +98,6 @@ class DistanceLearner():
         plt.title(f"epoch_size={self.train_episodes}")
         plt.savefig(os.path.join(self.savedir, f"loss.png"))
         plt.close('all')
-
-def discount_distance(distance):
-    gamma = 0.97
-    return (1 - gamma ** distance) / (1 - gamma)
-
-def bucket_distance1(distance):
-    # 3 classes
-    # gamma = 0.97
-    # distance = (1 - gamma ** distance) / (1 - gamma)
-    if distance < 100:
-        return 0
-    elif distance < 400:
-        return 1
-    else:
-        return 2
-
-
-def bucket_distance2(distance):
-    if distance < 50:
-        return 0
-    return 1
-
-def bucket_distance3(distance):
-    if distance < 100:
-        return 0
-    return 1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train distance metric on data")
@@ -154,7 +130,8 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
+    num_classes = 1
     train_data = TripletLossDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor)
     test_data = TripletLossDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor)
-    learner = DistanceLearner(train_data, test_data, label_mapper, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
+    learner = DistanceLearner(train_data, test_data, num_classes, savedir=savedir, device=args.device, epochs=args.num_epochs)
     learner.run()
