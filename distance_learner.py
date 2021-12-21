@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from distance_network import DistanceNetwork
 from feature_extractor import FeatureExtractor
-from dataset import DistanceDataset
+from dataset import TripletLossDataset
 from utils import IterativeAverage, trajectories_generator
 
 
@@ -27,18 +27,18 @@ class DistanceLearner():
         # plotting/history variables
         self.savedir = savedir
         avg_length = 550
-        positive_radius
+        positive_radius = 5
         self.episodes_to_batches = lambda episodes : int((2 * positive_radius + 1) * avg_length * episodes / batch_size)
         self.train_episodes = train_episodes
         self.test_episodes = test_episodes
         self.train_loss = [] 
         self.test_loss = [] 
-        self.loss_fn = triplet_loss
+        self.loss_fn = self.triplet_loss
+        self.margin = 15
 
     def triplet_loss(self, d_pos, d_neg):
         undershoot = torch.nn.functional.relu(d_pos - d_neg + self.margin)
         num_positive_triplets = torch.sum(undershoot > 1e-16)
-        ipdb.set_trace()
         return torch.sum(undershoot, dim=0) / (num_positive_triplets + 1e-16)
 
     def train_loop(self):
@@ -47,11 +47,11 @@ class DistanceLearner():
         for anchor, pos, neg, img in tqdm(itertools.islice(self.train_data(), 0, train_size), total=train_size):
             # forward pass
             self.optimizer.zero_grad()
-            anchor = anchor.float().to(self.device)
-            pos= pos.float().to(self.device)
-            pos = pos.float().to(self.device)
-            d_pos = self.model(torch.concatenate((anchor, pos)).squeeze()
-            d_neg = self.model(torch.concatenate((anchor, neg)).squeeze()
+            anchor = anchor.to(self.device)
+            pos = pos.to(self.device)
+            neg = neg.to(self.device)
+            d_pos = self.model(torch.cat((anchor, pos), 1)).squeeze()
+            d_neg = self.model(torch.cat((anchor, neg), 1)).squeeze()
             loss = self.loss_fn(d_pos, d_neg)
 
             # backpropagate
@@ -66,11 +66,11 @@ class DistanceLearner():
         loop_loss = IterativeAverage()
         test_size = self.episodes_to_batches(self.test_episodes)
         for anchor, pos, neg, img in tqdm(itertools.islice(self.test_data(), 0, test_size), total=test_size):
-            anchor = anchor.float().to(self.device)
-            pos= pos.float().to(self.device)
-            pos = pos.float().to(self.device)
-            d_pos = self.model(torch.concatenate((anchor, pos)).squeeze()
-            d_neg = self.model(torch.concatenate((anchor, neg)).squeeze()
+            anchor = anchor.to(self.device)
+            pos = pos.to(self.device)
+            neg = neg.to(self.device)
+            d_pos = self.model(torch.cat((anchor, pos), 1)).squeeze()
+            d_neg = self.model(torch.cat((anchor, neg), 1)).squeeze()
             loss = self.loss_fn(d_pos, d_neg)
             loop_loss.add(loss.item())
         self.test_loss.append(loop_loss.avg())

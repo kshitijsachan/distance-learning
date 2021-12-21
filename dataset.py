@@ -66,10 +66,10 @@ class TripletLossDataset(torch.utils.data.IterableDataset):
         self.positive_radius = positive_radius
     
     def __iter__(self):
-        for traj in self.generate_traj():
+        for traj in self.generate_trajs():
             n = len(traj)
             ram_traj, img_traj = self.transform(traj)
-            ipdb.set_trace()
+            ram_traj = np.array(ram_traj).astype(np.float32)
             anchor_idxs = list(range(self.positive_radius, n - self.positive_radius))
             random.shuffle(anchor_idxs)
             for anchor_idx in anchor_idxs:
