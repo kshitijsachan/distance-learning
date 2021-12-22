@@ -22,7 +22,7 @@ class DistanceDataset(torch.utils.data.IterableDataset):
                 end_state = ram_traj[end_idx]
                 x = np.concatenate((start_state, end_state))
                 true_y = end_idx - start_idx
-                to_predict_y = self.label_mapping_func(true_y)
+                to_predict_y = true_y
                 start_img = img_traj[start_idx]
                 end_img = img_traj[end_idx]
                 image_pair = (start_img, end_img)
@@ -43,6 +43,5 @@ class DistanceDataset(torch.utils.data.IterableDataset):
             for trajs in shuffled_data_generator:
                 for x, to_predict_y, true_y, img in trajs:
                     k = parse_example(x)
-                    to_predict_y = self.label_mapping_func(self.true_distance[k])
                     yield (x, to_predict_y, true_y, img)
 

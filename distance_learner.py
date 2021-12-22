@@ -107,10 +107,6 @@ class DistanceLearner():
         plt.savefig(os.path.join(self.savedir, f"loss.png"))
         plt.close('all')
 
-def discount_distance(distance):
-    gamma = 0.97
-    return (1 - gamma ** distance) / (1 - gamma)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="train distance metric on data")
     parser.add_argument("mdp_name", type=str)
