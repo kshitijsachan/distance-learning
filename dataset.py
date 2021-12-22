@@ -77,9 +77,12 @@ class TripletLossDataset(torch.utils.data.IterableDataset):
                 positive_idxs = list(range(max(0, lower_lim), min(n, upper_lim))) 
                 random.shuffle(positive_idxs)
                 for positive_idx in positive_idxs:
-                    negative_idx = anchor_idx
-                    while lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
+                    for _ in range(10):
                         negative_idx = random.randint(0, n - 1)
+                        if lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
+                            break
+                    else:
+                        continue
 
                     anchor, positive, negative = ram_traj[anchor_idx], ram_traj[positive_idx], ram_traj[negative_idx]
                     anchor_img, positive_img, negative_img = img_traj[anchor_idx], img_traj[positive_idx], img_traj[negative_idx]
