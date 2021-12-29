@@ -12,7 +12,7 @@ from utils import IterativeAverage, trajectories_generator
 
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, num_classes, savedir, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, train_dataset, test_dataset, num_classes, savedir, learning_rate=1e-5, batch_size=32, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         if device is None:
@@ -34,7 +34,7 @@ class DistanceLearner():
         self.train_loss = [] 
         self.test_loss = [] 
         self.loss_fn = self.triplet_loss
-        self.margin = 15
+        self.margin = 10
 
     def triplet_loss(self, d_pos, d_neg):
         undershoot = torch.nn.functional.relu(d_pos - d_neg + self.margin)
