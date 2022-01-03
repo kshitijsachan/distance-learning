@@ -10,7 +10,10 @@ class IterativeAverage():
         self.sum += x
 
     def avg(self):
-        return self.sum / self.n
+        if self.n > 0:
+            return self.sum / self.n
+        else:
+            return 1e-8
 
 def trajectories_generator(path):
     with gzip.open(path, 'rb') as f:
