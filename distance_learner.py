@@ -8,12 +8,12 @@ from torch.utils.data import DataLoader
 
 from distance_network import DistanceNetwork
 from feature_extractor import FeatureExtractor
-from dataset import TripletLossDataset
+from dataset import TripletLossD4rlDataset
 from dataset import DistanceDataset, D4rlDataset
 from utils import IterativeAverage, trajectories_generator
 
 class DistanceLearner():
-    def __init__(self, train_dataset, test_dataset, savedir, learning_rate=1e-5, batch_size=32, epochs=1, device=None, train_episodes=100, test_episodes=30):
+    def __init__(self, get_train_data, get_test_data, savedir, learning_rate=1e-5, batch_size=32, epochs=1, device=None, train_episodes=100, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         self.get_train_data = get_train_data 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         train_data = lambda num_episodes: DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, num_episodes)
         test_data = lambda num_episodes: DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, num_episodes)
     elif args.mdp_name in envs_dict:
-        train_data = lambda num_episodes: D4rlDataset(envs_dict[args.mdp_name], num_episodes)
+        train_data = lambda num_episodes: TripletLossD4rlDataset(envs_dict[args.mdp_name], num_episodes)
         test_data = None
     else:
         parser.error(f"Invalid mdp name: {args.mdp_name}") 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     # set up save directory
     savedir = "run_data"
     if args.experiment_name is not None:
-        savedir = os.path.join(savedir, args.experiment_name + f"_seed={seed}_quantile={args.quantile}")
+        savedir = os.path.join(savedir, args.experiment_name + f"_seed={seed}")
     os.makedirs(savedir, exist_ok=True)
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))

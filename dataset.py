@@ -126,12 +126,13 @@ class TripletLossDataset(torch.utils.data.IterableDataset):
 
 
 class TripletLossD4rlDataset(torch.utils.data.IterableDataset):
-    def __init__(self, mdp_name, idle_threshold=200, positive_radius=5):
+    def __init__(self, mdp_name, num_episodes, idle_threshold=200, positive_radius=5):
         super(DistanceDataset).__init__()
         env = gym.make(mdp_name)
         self.trajs = d4rl.sequence_dataset(env)
         self.idle_threshold = idle_threshold
         self.positive_radius = positive_radius
+        self.num_episodes = num_episodes
 
     def traj_to_data_pairs(self, traj):
         n = len(traj)
