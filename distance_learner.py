@@ -29,9 +29,22 @@ def quantile_loss(errors, quantile, k=1.0, reduce='mean'):
     else:
         raise ValueError('invalid input for `reduce`')
 
+def quantile_l2_loss(errors, quantile, reduce='mean'):
+    indicator = torch.where(
+            errors < 0,
+            torch.zeros_like(errors),
+            torch.ones_like(errors)
+            )
+    loss = torch.abs(quantile - indicator) * (errors ** 2)
+    if reduce == 'mean':
+        return loss.mean()
+    elif reduce == 'none':
+        return loss
+    else:
+        raise ValueError('invalid input for `reduce`')
 
 class DistanceLearner():
-    def __init__(self, get_train_data, get_test_data, savedir, quantile, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=500, test_episodes=30):
+    def __init__(self, get_train_data, get_test_data, savedir, loss_ord, quantile, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=500, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         self.get_train_data = get_train_data 
@@ -44,8 +57,14 @@ class DistanceLearner():
         self.model = DistanceNetwork(input_dim=8, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         #self.loss_fn = torch.nn.MSELoss()
-        self.loss_fn = quantile_loss
         self.quantile = quantile
+        if loss_ord == 1:
+            self.loss_fn = quantile_loss
+        elif loss_ord == 2:
+            self.loss_fn = quantile_l2_loss 
+        else:
+            raise NotImplementedError
+
         
         # plotting/history variables
         self.savedir = savedir
@@ -126,6 +145,7 @@ class DistanceLearner():
             num_epochs = list(range(len(self.test_loss)))
             plt.plot(num_epochs, self.test_loss, label="test")
         plt.legend()
+        plt.yscale('log')
         plt.xlabel("# epochs trained")
         plt.ylabel("average loss")
         plt.title(f"epoch_size={self.train_episodes}")
@@ -143,12 +163,15 @@ if __name__ == "__main__":
     parser.add_argument("--train_data_path", type=str)
     parser.add_argument("--test_data_path", type=str)
     parser.add_argument("--quantile", type=float)
+    parser.add_argument("--loss_ord", type=int)
 
     args = parser.parse_args()
     envs_dict = {
             'umaze' : 'maze2d-umaze-dense-v1',
             'umaze-sparse' : 'maze2d-umaze-v1',
-            'medium-maze' : 'maze2d-medium-v1'
+            'medium-maze' : 'maze2d-medium-v1',
+            'large-maze' : 'maze2d-large-v1',
+            'ant-umaze' : 'antmaze-umaze-v0'
             }
     if args.mdp_name == "monte-ram":
         from montezuma_ram_feature_extractor import MontezumaRamFeatureExtractor
@@ -175,5 +198,5 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    learner = DistanceLearner(train_data, test_data, savedir=savedir, quantile=args.quantile, device=args.device, epochs=args.num_epochs)
+    learner = DistanceLearner(train_data, test_data, loss_ord=args.loss_ord, savedir=savedir, quantile=args.quantile, device=args.device, epochs=args.num_epochs)
     learner.run()
