@@ -135,19 +135,20 @@ class TripletLossD4rlDataset(torch.utils.data.IterableDataset):
         self.num_episodes = num_episodes
 
     def traj_to_data_pairs(self, traj):
+        traj = traj['observations']
         n = len(traj)
         anchor_idxs = list(range(self.positive_radius, n - self.positive_radius))
         data = []
         for anchor_idx in anchor_idxs:
             lower_lim, upper_lim = anchor_idx - self.positive_radius, anchor_idx + self.positive_radius
             positive_idxs = list(range(max(0, lower_lim), min(n, upper_lim))) 
-            for _ in range(10):
-                negative_idx = random.randint(0, n - 1)
-                if lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
-                    anchor, positive, negative = ram_traj[anchor_idx], ram_traj[positive_idx], ram_traj[negative_idx]
-                    anchor_img, positive_img, negative_img = img_traj[anchor_idx], img_traj[positive_idx], img_traj[negative_idx]
-                    yield (anchor, positive, negative, (anchor_img, positive_img, negative_img))
-                    break
+            for positive_idx in positive_idxs:
+                for _ in range(10):
+                    negative_idx = random.randint(0, n - 1)
+                    if lower_lim - self.idle_threshold <= negative_idx <= upper_lim + self.idle_threshold:
+                        anchor, positive, negative = traj[anchor_idx], traj[positive_idx], traj[negative_idx]
+                        yield (anchor, positive, negative)
+                        break
     
     @staticmethod
     def scramble(gen, buffer_size=100000):
@@ -169,5 +170,5 @@ class TripletLossD4rlDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         # shuffle pairs between and across episodes
         data_generator = self.scramble(flatten(map(self.traj_to_data_pairs, islice(self.trajs, self.num_episodes))))
-        for anchor, positive, negative, img in data_generator:
-            yield (anchor, positive, negative, img)
+        for anchor, positive, negative in data_generator:
+            yield (anchor, positive, negative, 0)

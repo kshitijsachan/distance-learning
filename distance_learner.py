@@ -23,7 +23,7 @@ class DistanceLearner():
         else:
             self.device = device
 
-        self.model = DistanceNetwork(input_dim=8, output_dim=1).to(self.device)
+        self.model = DistanceNetwork(input_dim=4, output_dim=3).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.loss_fn = self.triplet_loss
         
@@ -33,9 +33,11 @@ class DistanceLearner():
         self.train_loss = [] 
         self.test_loss = [] 
         self.loss_fn = self.triplet_loss
-        self.margin = 10
+        self.margin = 1
 
-    def triplet_loss(self, d_pos, d_neg):
+    def triplet_loss(self, anchor, positive, negative):
+        d_pos = torch.norm(anchor - positive, dim=-1, p=2)
+        d_neg = torch.norm(anchor - negative, dim=-1, p=2)
         undershoot = torch.nn.functional.relu(d_pos - d_neg + self.margin)
         num_positive_triplets = torch.sum(undershoot > 1e-16)
         return torch.sum(undershoot, dim=0) / (num_positive_triplets + 1e-16)
@@ -50,9 +52,8 @@ class DistanceLearner():
             anchor = anchor.to(self.device)
             pos = pos.to(self.device)
             neg = neg.to(self.device)
-            d_pos = self.model(torch.cat((anchor, pos), 1)).squeeze()
-            d_neg = self.model(torch.cat((anchor, neg), 1)).squeeze()
-            loss = self.loss_fn(d_pos, d_neg)
+            z0, z1, z2 = self.model(anchor), self.model(pos), self.model(neg)
+            loss = self.loss_fn(z0, z1, z2)
 
             # backpropagate
             if not first_pass:
