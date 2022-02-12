@@ -80,8 +80,19 @@ def _parse_xy(state):
     return 'misc'
 
 def get_all_combos():
-        xy_pos = ['left-ladder', 'middle-ladder', 'right-ladder', 'rope', 'top-left', 'top-middle', 'top-right', 'bottom', 'middle-left', 'middle-middle', 'middle-right', 'misc']
+        xy_pos = ['left-ladder', 'middle-ladder', 'right-ladder', 'rope', 'top-left', 'top-middle',
+                'top-right', 'bottom', 'middle-left', 'middle-middle', 'middle-right', 'misc']
         lives_left = list(range(6))
         has_key = [True, False]
         all_combos = lambda : itertools.product(xy_pos, lives_left, has_key)
         return all_combos
+
+envs_dict = {
+        'umaze-dense' : 'maze2d-umaze-dense-v1',
+        'umaze-sparse' : 'maze2d-umaze-v1',
+        'medium-maze-sparse' : 'maze2d-medium-v1',
+        'large-maze-dense' : 'maze2d-large-dense-v1',
+        'large-maze-sparse' : 'maze2d-large-v1',
+        'ant-umaze' : 'antmaze-umaze-v0',
+        'ant-umaze-diverse' : 'antmaze-umaze-diverse-v0'
+        }

@@ -9,7 +9,7 @@ from utils import parse_example
 
 class DistanceDataset(IterableDataset):
     def __init__(self, trajs, feature_extractor, num_episodes):
-        super(DistanceDataset).__init__()
+        super(DistanceDataset).__init__() 
         self.trajs = trajs 
         self.transform = feature_extractor.extract_features
         self.num_episodes = num_episodes
@@ -54,12 +54,18 @@ class DistanceDataset(IterableDataset):
         for x, to_predict_y, true_y, img in data_generator:
             yield (x, to_predict_y, true_y, img)
 
+# TODO: delete reduce_dims after experiments are completed
+reduce_dims = False
+
 class D4rlDataset(IterableDataset):
-    def __init__(self, mdp_name, num_episodes):
+    def __init__(self, mdp_name, num_episodes, gamma=1):
+        if reduce_dims:
+            print('REDUCE DIMS IS TRUE' + '-' * 10)
         super(D4rlDataset).__init__()
         env = gym.make(mdp_name)
         self.trajs = d4rl.sequence_dataset(env)
         self.num_episodes = num_episodes
+        self.gamma = gamma
 
     def traj_to_data_pairs(self, traj):
         obs = traj['observations']
@@ -69,15 +75,22 @@ class D4rlDataset(IterableDataset):
             for end_idx in range(start_idx, n):
                 start_state = obs[start_idx]
                 end_state = obs[end_idx]
+                if reduce_dims:
+                    start_state, end_state = start_state[:2], end_state[:2]
                 x = np.concatenate((start_state, end_state))
                 true_y = end_idx - start_idx
-                to_predict_y = true_y
+                if self.gamma < 1:
+                    to_predict_y = (1 - self.gamma ** true_y) / (1 - self.gamma)
+                elif self.gamma == 1:
+                    to_predict_y = true_y
+                else:
+                    raise ValueError("Gamma can't be greater than 1")
                 data.append((x, to_predict_y, true_y))
         return data
 
     @staticmethod
     def scramble(gen, buffer_size=100000):
-        buf = []
+        buf = [] 
         i = iter(gen)
         while True:
             try:
@@ -97,3 +110,18 @@ class D4rlDataset(IterableDataset):
         data_generator = self.scramble(flatten(map(self.traj_to_data_pairs, islice(self.trajs, self.num_episodes))))
         for x, to_predict_y, true_y in data_generator:
             yield (x, to_predict_y, true_y, 0) # add 0 at the end because there is no image
+
+
+class EvalD4rlDataset(IterableDataset):
+    def __init__(self, mdp_name, num_episodes=None):
+        super(EvalD4rlDataset).__init__()
+        env = gym.make(mdp_name)
+        self.trajs = d4rl.sequence_dataset(env)
+        self.num_episodes = num_episodes
+
+    def __iter__(self):
+        for traj in islice(self.trajs, self.num_episodes):
+            if reduce_dims:
+                yield traj['observations'][:, :2]
+            else:
+                yield traj['observations']

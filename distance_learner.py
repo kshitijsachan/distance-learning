@@ -5,11 +5,11 @@ from collections import defaultdict
 from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-
+from scripts.eval_quantile_learner import plot_distances_map
 from distance_network import DistanceNetwork
 from feature_extractor import FeatureExtractor
 from dataset import DistanceDataset, D4rlDataset
-from utils import IterativeAverage, trajectories_generator
+from utils import IterativeAverage, trajectories_generator, envs_dict
 
 
 def quantile_loss(errors, quantile, k=1.0, reduce='mean'):
@@ -44,17 +44,19 @@ def quantile_l2_loss(errors, quantile, reduce='mean'):
         raise ValueError('invalid input for `reduce`')
 
 class DistanceLearner():
-    def __init__(self, get_train_data, get_test_data, savedir, loss_ord, quantile, learning_rate=1e-4, batch_size=128, epochs=1, device=None, train_episodes=500, test_episodes=30):
+    def __init__(self, get_train_data, get_test_data, savedir, loss_ord, quantile, batch_size,
+            mdp_name, learning_rate, epochs, device, train_episodes, test_episodes=30):
         self.epochs = epochs
         self.batch_size = batch_size
         self.get_train_data = get_train_data 
         self.get_test_data = get_test_data 
+        self.mdp_name = mdp_name
         if device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
 
-        self.model = DistanceNetwork(input_dim=8, output_dim=1).to(self.device)
+        self.model = DistanceNetwork(input_dim=58, output_dim=1).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         #self.loss_fn = torch.nn.MSELoss()
         self.quantile = quantile
@@ -107,7 +109,7 @@ class DistanceLearner():
         plt.scatter(all_pred, all_actual, alpha=0.1)
         plt.xlabel("predicted")
         plt.ylabel("actual")
-        plt.title("quantile = 0.05: pred vs actual")
+        plt.title(f"quantile = {self.quantile}: pred vs actual")
         plt.savefig(os.path.join(self.savedir, f"pred_vs_actual_epoch_{epoch}.png"))
         plt.close('all')
 
@@ -133,10 +135,13 @@ class DistanceLearner():
             if self.get_test_data is not None:
                 self.test_loop()
             self._plot_loss()
+            if i % 3 == 0:
+                plot_distances_map(self.mdp_name, self.model, self.device, self.savedir)
             torch.save({
                 'model' : self.model.state_dict(),
                 'optimizer' : self.optimizer.state_dict()
                 }, os.path.join(self.savedir, f"pytorch_model.pt"))
+        plot_distances_map(self.mdp_name, self.model, self.device, self.savedir)
 
     def _plot_loss(self):
         num_epochs = list(range(0, len(self.train_loss)))
@@ -163,23 +168,22 @@ if __name__ == "__main__":
     parser.add_argument("--train_data_path", type=str)
     parser.add_argument("--test_data_path", type=str)
     parser.add_argument("--quantile", type=float)
+    parser.add_argument("--gamma", type=float)
+    parser.add_argument("--batch_size", type=int)
     parser.add_argument("--loss_ord", type=int)
+    parser.add_argument("--train_episodes", type=int)
+    parser.add_argument("--learning_rate", type=float)
 
     args = parser.parse_args()
-    envs_dict = {
-            'umaze' : 'maze2d-umaze-dense-v1',
-            'umaze-sparse' : 'maze2d-umaze-v1',
-            'medium-maze' : 'maze2d-medium-v1',
-            'large-maze' : 'maze2d-large-v1',
-            'ant-umaze' : 'antmaze-umaze-v0'
-            }
     if args.mdp_name == "monte-ram":
         from montezuma_ram_feature_extractor import MontezumaRamFeatureExtractor
         feature_extractor = MontezumaRamFeatureExtractor()
-        train_data = lambda num_episodes: DistanceDataset(lambda: trajectories_generator(args.train_data_path), feature_extractor, num_episodes)
-        test_data = lambda num_episodes: DistanceDataset(lambda: trajectories_generator(args.test_data_path), feature_extractor, num_episodes)
+        train_data = lambda num_episodes: DistanceDataset(lambda:
+                trajectories_generator(args.train_data_path), feature_extractor, num_episodes)
+        test_data = lambda num_episodes: DistanceDataset(lambda:
+                trajectories_generator(args.test_data_path), feature_extractor, num_episodes)
     elif args.mdp_name in envs_dict:
-        train_data = lambda num_episodes: D4rlDataset(envs_dict[args.mdp_name], num_episodes)
+        train_data = lambda num_episodes: D4rlDataset(envs_dict[args.mdp_name], num_episodes, gamma=args.gamma)
         test_data = None
     else:
         parser.error(f"Invalid mdp name: {args.mdp_name}") 
@@ -198,5 +202,8 @@ if __name__ == "__main__":
     with open(os.path.join(savedir, "run_command.txt"), "w") as f:
         f.write(' '.join(str(arg) for arg in sys.argv))
 
-    learner = DistanceLearner(train_data, test_data, loss_ord=args.loss_ord, savedir=savedir, quantile=args.quantile, device=args.device, epochs=args.num_epochs)
+    learner = DistanceLearner(train_data, test_data, loss_ord=args.loss_ord, savedir=savedir,
+            quantile=args.quantile, device=args.device, epochs=args.num_epochs,
+            learning_rate=args.learning_rate, batch_size=args.batch_size, mdp_name=args.mdp_name,
+            train_episodes=args.train_episodes)
     learner.run()
